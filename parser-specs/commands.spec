@@ -41,6 +41,7 @@ state INITIAL:
   'title_format' -> TITLE_FORMAT
   'mode' -> MODE
   'bar' -> BAR
+  'gaps' -> GAPS
 
 state CRITERIA:
   ctype = 'class'       -> CRITERION
@@ -91,6 +92,23 @@ state BORDER:
     -> call cmd_border($border_style, 0)
   border_style = '1pixel'
     -> call cmd_border($border_style, 1)
+
+# gaps inner|outer [current] [plus|minus] <px>
+state GAPS:
+  type = 'inner', 'outer'
+      -> GAPS_WITH_TYPE
+
+state GAPS_WITH_TYPE:
+  scope = 'current', 'all'
+      -> GAPS_WITH_SCOPE
+
+state GAPS_WITH_SCOPE:
+  mode = 'plus', 'minus', 'set'
+      -> GAPS_WITH_MODE
+
+state GAPS_WITH_MODE:
+  value = word
+      -> call cmd_gaps($type, $scope, $mode, $value)
 
 state BORDER_WIDTH:
   end

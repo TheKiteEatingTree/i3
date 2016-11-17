@@ -23,6 +23,9 @@ state INITIAL:
   'bar'                                    -> BARBRACE
   'font'                                   -> FONT
   'mode'                                   -> MODENAME
+  'gaps'                                   -> GAPS
+  'smart_borders'                          -> SMART_BORDERS
+  'smart_gaps'                             -> SMART_GAPS
   'floating_minimum_size'                  -> FLOATING_MINIMUM_SIZE_WIDTH
   'floating_maximum_size'                  -> FLOATING_MAXIMUM_SIZE_WIDTH
   'floating_modifier'                      -> FLOATING_MODIFIER
@@ -56,6 +59,28 @@ state INITIAL:
 state IGNORE_LINE:
   line
       -> INITIAL
+
+# gaps inner|outer <px>
+state GAPS:
+  scope = 'inner', 'outer'
+      -> GAPS_WITH_SCOPE
+
+state GAPS_WITH_SCOPE:
+  value = number
+      -> call cfg_gaps($workspace, $scope, &value)
+
+# smart_borders true|false
+# smart_borders no_gaps
+state SMART_BORDERS:
+  enabled = '1', 'yes', 'true', 'on', 'enable', 'active'
+      -> call cfg_smart_borders($enabled)
+  enabled = 'no_gaps'
+      -> call cfg_smart_borders($enabled)
+
+# smart_gaps on|off
+state SMART_GAPS:
+  enabled = '1', 'yes', 'true', 'on', 'enable', 'active'
+      -> call cfg_smart_gaps($enabled)
 
 # floating_minimum_size <width> x <height>
 state FLOATING_MINIMUM_SIZE_WIDTH:
@@ -238,13 +263,16 @@ state FOCUS_ON_WINDOW_ACTIVATION:
       -> call cfg_focus_on_window_activation($mode)
 
 # workspace <workspace> output <output>
+# workspace <workspace> gaps inner|outer <px>
 state WORKSPACE:
   workspace = word
-    -> WORKSPACE_OUTPUT
+    -> WORKSPACE_COMMAND
 
-state WORKSPACE_OUTPUT:
+state WORKSPACE_COMMAND:
   'output'
       -> WORKSPACE_OUTPUT_STR
+  'gaps'
+      -> GAPS
 
 state WORKSPACE_OUTPUT_STR:
   output = word
@@ -422,6 +450,7 @@ state BAR:
   'workspace_buttons'      -> BAR_WORKSPACE_BUTTONS
   'strip_workspace_numbers' -> BAR_STRIP_WORKSPACE_NUMBERS
   'verbose'                -> BAR_VERBOSE
+  'height'                 -> BAR_HEIGHT
   'colors'                 -> BAR_COLORS_BRACE
   '}'
       -> call cfg_bar_finish(); INITIAL
@@ -520,6 +549,10 @@ state BAR_STRIP_WORKSPACE_NUMBERS:
 state BAR_VERBOSE:
   value = word
       -> call cfg_bar_verbose($value); BAR
+
+state BAR_HEIGHT:
+  value = number
+      -> call cfg_bar_height(&value); BAR
 
 state BAR_COLORS_BRACE:
   end

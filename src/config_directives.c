@@ -156,6 +156,59 @@ CFGFUN(for_window, const char *command) {
     TAILQ_INSERT_TAIL(&assignments, assignment, assignments);
 }
 
+void create_gaps_assignment(const char *workspace, bool inner, const long value) {
+    DLOG("Setting gaps for workspace %s", workspace);
+
+    struct Workspace_Assignment *assignment;
+    TAILQ_FOREACH(assignment, &ws_assignments, ws_assignments) {
+        if (strcasecmp(assignment->name, workspace) == 0) {
+            if (inner)
+                assignment->gaps.inner = value;
+            else
+                assignment->gaps.outer = value;
+
+            return;
+        }
+    }
+
+    // Assignment does not yet exist, let's create it.
+    assignment = scalloc(1, sizeof(struct Workspace_Assignment));
+    assignment->name = sstrdup(workspace);
+    assignment->output = NULL;
+    if (inner)
+        assignment->gaps.inner = value;
+    else
+        assignment->gaps.outer = value;
+    TAILQ_INSERT_TAIL(&ws_assignments, assignment, ws_assignments);
+}
+
+CFGFUN(gaps, const char *workspace, const char *scope, const long value) {
+    if (!strcmp(scope, "inner")) {
+        if (workspace == NULL)
+            config.gaps.inner = value;
+        else
+            create_gaps_assignment(workspace, true, value - config.gaps.inner);
+    } else if (!strcmp(scope, "outer")) {
+        if (workspace == NULL)
+            config.gaps.outer = value;
+        else
+            create_gaps_assignment(workspace, false, value - config.gaps.outer);
+    } else {
+        ELOG("Invalid command, cannot process scope %s", scope);
+    }
+}
+
+CFGFUN(smart_borders, const char *enable) {
+    if (!strcmp(enable, "no_gaps"))
+        config.smart_borders = NO_GAPS;
+    else
+        config.smart_borders = eval_boolstr(enable) ? ON : OFF;
+}
+
+CFGFUN(smart_gaps, const char *enable) {
+    config.smart_gaps = eval_boolstr(enable);
+}
+
 CFGFUN(floating_minimum_size, const long width, const long height) {
     config.floating_minimum_width = width;
     config.floating_minimum_height = height;
@@ -299,8 +352,9 @@ CFGFUN(workspace, const char *workspace, const char *output) {
     bool duplicate = false;
     TAILQ_FOREACH(assignment, &ws_assignments, ws_assignments) {
         if (strcasecmp(assignment->name, workspace) == 0) {
-            ELOG("You have a duplicate workspace assignment for workspace \"%s\"\n",
-                 workspace);
+            if (assignment->output != NULL)
+                ELOG("You have a duplicate workspace assignment for workspace \"%s\"\n", workspace);
+
             assignment->output = sstrdup(output);
             duplicate = true;
         }
@@ -428,6 +482,10 @@ CFGFUN(bar_output, const char *output) {
 
 CFGFUN(bar_verbose, const char *verbose) {
     current_bar->verbose = eval_boolstr(verbose);
+}
+
+CFGFUN(bar_height, const long height) {
+    current_bar->bar_height = (uint32_t)height;
 }
 
 CFGFUN(bar_modifier, const char *modifier) {

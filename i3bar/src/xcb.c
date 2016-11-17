@@ -74,7 +74,7 @@ xcb_visualtype_t *visual_type;
 uint8_t depth;
 xcb_colormap_t colormap;
 
-/* Overall height of the bar (based on font size) */
+/* Overall height of the size */
 int bar_height;
 
 /* These are only relevant for XKB, which we only need for grabbing modifiers */
@@ -190,7 +190,7 @@ static void draw_separator(i3_output *output, uint32_t x, struct status_block *b
         /* Draw a custom separator. */
         uint32_t separator_x = MAX(x - block->sep_block_width, center_x - separator_symbol_width / 2);
         draw_util_text(config.separator_symbol, &output->statusline_buffer, sep_fg, bar_bg,
-                       separator_x, logical_px(ws_voff_px), x - separator_x);
+                       separator_x, bar_height / 2 - font.height / 2, x - separator_x);
     }
 }
 
@@ -211,7 +211,7 @@ uint32_t predict_statusline_length(bool use_short_text) {
 
         render->width = predict_text_width(text);
         if (block->border)
-            render->width += logical_px(2);
+            render->width += logical_px(block->border_left + block->border_right);
 
         /* Compute offset and append for text aligment in min_width. */
         if (block->min_width <= render->width) {
@@ -285,7 +285,6 @@ void draw_statusline(i3_output *output, uint32_t clip_left, bool use_focus_color
 
         color_t bg_color = bar_color;
 
-        int border_width = (block->border) ? logical_px(1) : 0;
         int full_render_width = render->width + render->x_offset + render->x_append;
         if (block->border || block->background || block->urgent) {
             /* Let's determine the colors first. */
@@ -307,16 +306,18 @@ void draw_statusline(i3_output *output, uint32_t clip_left, bool use_focus_color
                                 bar_height - logical_px(2));
 
             /* Draw the background. */
+            bool is_border = !!block->border;
             draw_util_rectangle(xcb_connection, &output->statusline_buffer, bg_color,
-                                x + border_width,
-                                logical_px(1) + border_width,
-                                full_render_width - 2 * border_width,
-                                bar_height - 2 * border_width - logical_px(2));
+                                x + is_border * logical_px(block->border_left),
+                                logical_px(1) + is_border * logical_px(block->border_top),
+                                full_render_width - is_border * logical_px(block->border_right + block->border_left),
+                                bar_height - is_border * logical_px(block->border_bottom + block->border_top) - logical_px(2));
         }
 
-        draw_util_text(text, &output->statusline_buffer, fg_color, bg_color,
-                       x + render->x_offset + border_width, logical_px(ws_voff_px),
-                       render->width - 2 * border_width);
+        draw_util_text(text, &output->statusline_buffer, fg_color, colors.bar_bg,
+                       x + render->x_offset + logical_px(block->border_left),
+                       bar_height / 2 - font.height / 2,
+                       render->width - logical_px(block->border_left - block->border_right));
         x += full_render_width;
 
         /* If this is not the last block, draw a separator. */
@@ -1218,7 +1219,21 @@ char *init_xcb_early() {
 
     depth = root_screen->root_depth;
     colormap = root_screen->default_colormap;
-    visual_type = get_visualtype(root_screen);
+    visual_type = config.transparency ? xcb_aux_find_visual_by_attrs(root_screen, -1, 32) : NULL;
+    if (visual_type != NULL) {
+        depth = xcb_aux_get_depth_of_visual(root_screen, visual_type->visual_id);
+        colormap = xcb_generate_id(xcb_connection);
+        xcb_void_cookie_t cm_cookie = xcb_create_colormap_checked(xcb_connection,
+                                                                  XCB_COLORMAP_ALLOC_NONE,
+                                                                  colormap,
+                                                                  xcb_root,
+                                                                  visual_type->visual_id);
+        if (xcb_request_failed(cm_cookie, "Could not allocate colormap")) {
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        visual_type = get_visualtype(root_screen);
+    }
 
     xcb_cursor_context_t *cursor_ctx;
     if (xcb_cursor_context_new(conn, root_screen, &cursor_ctx) == 0) {
@@ -1312,8 +1327,16 @@ void init_xcb_late(char *fontname) {
     /* Load the font */
     font = load_font(fontname, true);
     set_font(&font);
-    DLOG("Calculated font height: %d\n", font.height);
-    bar_height = font.height + 2 * logical_px(ws_voff_px);
+    DLOG("Calculated font-height: %d\n", font.height);
+
+    /*
+     * If the bar height was explicitly set, use it. Otherwise, calculate it
+     * based on the font size.
+     */
+    if (config.bar_height <= 0)
+        bar_height = font.height + 2 * logical_px(ws_voff_px);
+    else
+        bar_height = config.bar_height;
     icon_size = bar_height - 2 * logical_px(config.tray_padding);
 
     if (config.separator_symbol)
@@ -1978,18 +2001,18 @@ void draw_bars(bool unhide) {
                                     workspace_width,
                                     logical_px(1),
                                     ws_walk->name_width + 2 * logical_px(ws_hoff_px) + 2 * logical_px(1),
-                                    font.height + 2 * logical_px(ws_voff_px) - 2 * logical_px(1));
+                                    bar_height - 2 * logical_px(1));
 
                 /* Draw the inside of the button. */
                 draw_util_rectangle(xcb_connection, &(outputs_walk->buffer), bg_color,
                                     workspace_width + logical_px(1),
                                     2 * logical_px(1),
                                     ws_walk->name_width + 2 * logical_px(ws_hoff_px),
-                                    font.height + 2 * logical_px(ws_voff_px) - 4 * logical_px(1));
+                                    bar_height - 4 * logical_px(1));
 
                 draw_util_text(ws_walk->name, &(outputs_walk->buffer), fg_color, bg_color,
                                workspace_width + logical_px(ws_hoff_px) + logical_px(1),
-                               logical_px(ws_voff_px),
+                               bar_height / 2 - font.height / 2,
                                ws_walk->name_width);
 
                 workspace_width += 2 * logical_px(ws_hoff_px) + 2 * logical_px(1) + ws_walk->name_width;
@@ -2008,17 +2031,17 @@ void draw_bars(bool unhide) {
                                 workspace_width,
                                 logical_px(1),
                                 binding.width + 2 * logical_px(ws_hoff_px) + 2 * logical_px(1),
-                                font.height + 2 * logical_px(ws_voff_px) - 2 * logical_px(1));
+                                bar_height - 2 * logical_px(1));
 
             draw_util_rectangle(xcb_connection, &(outputs_walk->buffer), bg_color,
                                 workspace_width + logical_px(1),
                                 2 * logical_px(1),
                                 binding.width + 2 * logical_px(ws_hoff_px),
-                                font.height + 2 * logical_px(ws_voff_px) - 4 * logical_px(1));
+                                bar_height - 4 * logical_px(1));
 
             draw_util_text(binding.name, &(outputs_walk->buffer), fg_color, bg_color,
                            workspace_width + logical_px(ws_hoff_px) + logical_px(1),
-                           logical_px(ws_voff_px),
+                           bar_height / 2 - font.height / 2,
                            binding.width);
 
             unhide = true;

@@ -47,6 +47,7 @@ typedef struct Con Con;
 typedef struct Match Match;
 typedef struct Assignment Assignment;
 typedef struct Window i3Window;
+typedef struct gaps_t gaps_t;
 typedef struct mark_t mark_t;
 
 /******************************************************************************
@@ -75,6 +76,10 @@ typedef enum { ADJ_NONE = 0,
                ADJ_RIGHT_SCREEN_EDGE = (1 << 1),
                ADJ_UPPER_SCREEN_EDGE = (1 << 2),
                ADJ_LOWER_SCREEN_EDGE = (1 << 4) } adjacent_t;
+
+typedef enum { OFF,
+               ON,
+               NO_GAPS } smart_borders_t;
 
 typedef enum { HEBM_NONE = ADJ_NONE,
                HEBM_VERTICAL = ADJ_LEFT_SCREEN_EDGE | ADJ_RIGHT_SCREEN_EDGE,
@@ -132,6 +137,11 @@ typedef enum {
     POINTER_WARPING_OUTPUT = 0,
     POINTER_WARPING_NONE = 1
 } warping_t;
+
+struct gaps_t {
+    int inner;
+    int outer;
+};
 
 /**
  * Stores a rectangle, for example the size of a window, the child window etc.
@@ -192,12 +202,13 @@ struct deco_render_params {
 };
 
 /**
- * Stores which workspace (by name or number) goes to which output.
+ * Stores which workspace (by name or number) goes to which output and its gaps config.
  *
  */
 struct Workspace_Assignment {
     char *name;
     char *output;
+    gaps_t gaps;
 
     TAILQ_ENTRY(Workspace_Assignment) ws_assignments;
 };
@@ -586,6 +597,9 @@ struct Con {
     /** the workspace number, if this Con is of type CT_WORKSPACE and the
      * workspace is not a named workspace (for named workspaces, num == -1) */
     int num;
+
+    /** Only applicable for containers of type CT_WORKSPACE. */
+    gaps_t gaps;
 
     struct Con *parent;
 

@@ -811,7 +811,7 @@ void cmd_append_layout(I3_CMD, const char *cpath) {
     // is not executed yet and will be batched with append_layout’s
     // needs_tree_render after the parser finished. We should check if that is
     // necessary at all.
-    render_con(croot, false);
+    render_con(croot, false, false);
 
     restore_open_placeholder_windows(parent);
 
@@ -2109,6 +2109,68 @@ void cmd_debuglog(I3_CMD, const char *argument) {
         LOG("Disabling debug logging\n");
         set_debug_logging(false);
     }
+    // XXX: default reply for now, make this a better reply
+    ysuccess(true);
+}
+
+/**
+ * Implementation of 'gaps inner|outer current|all set|plus|minus <px>'
+ *
+ */
+void cmd_gaps(I3_CMD, const char *type, const char *scope, const char *mode, const char *value) {
+#define CMD_GAPS(type, other)                                      \
+    int pixels = atoi(value);                                      \
+    Con *workspace = con_get_workspace(focused);                   \
+                                                                   \
+    int current_value = config.gaps.type;                          \
+    if (strcmp(scope, "current") == 0)                             \
+        current_value += workspace->gaps.type;                     \
+                                                                   \
+    bool reset = false;                                            \
+    if (!strcmp(mode, "plus"))                                     \
+        current_value += pixels;                                   \
+    else if (!strcmp(mode, "minus"))                               \
+        current_value -= pixels;                                   \
+    else if (!strcmp(mode, "set")) {                               \
+        current_value = pixels;                                    \
+        reset = true;                                              \
+    } else {                                                       \
+        ELOG("Invalid mode %s when changing gaps", mode);          \
+        ysuccess(false);                                           \
+        return;                                                    \
+    }                                                              \
+                                                                   \
+    if (current_value < 0)                                         \
+        current_value = 0;                                         \
+                                                                   \
+    if (!strcmp(scope, "all")) {                                   \
+        Con *output, *cur_ws = NULL;                               \
+        TAILQ_FOREACH(output, &(croot->nodes_head), nodes) {       \
+            Con *content = output_get_content(output);             \
+            TAILQ_FOREACH(cur_ws, &(content->nodes_head), nodes) { \
+                if (reset)                                         \
+                    cur_ws->gaps.type = 0;                         \
+                else if (current_value + cur_ws->gaps.type < 0)    \
+                    cur_ws->gaps.type = -current_value;            \
+            }                                                      \
+        }                                                          \
+                                                                   \
+        config.gaps.type = current_value;                          \
+    } else {                                                       \
+        workspace->gaps.type = current_value - config.gaps.type;   \
+    }
+
+    if (!strcmp(type, "inner")) {
+        CMD_GAPS(inner, outer);
+    } else if (!strcmp(type, "outer")) {
+        CMD_GAPS(outer, inner);
+    } else {
+        ELOG("Invalid type %s when changing gaps", type);
+        ysuccess(false);
+        return;
+    }
+
+    cmd_output->needs_tree_render = true;
     // XXX: default reply for now, make this a better reply
     ysuccess(true);
 }

@@ -124,6 +124,16 @@ static void dump_rect(yajl_gen gen, const char *name, Rect r) {
     y(map_close);
 }
 
+static void dump_gaps(yajl_gen gen, const char *name, gaps_t gaps) {
+    ystr(name);
+    y(map_open);
+    ystr("inner");
+    y(integer, gaps.inner);
+    ystr("outer");
+    y(integer, gaps.outer);
+    y(map_close);
+}
+
 static void dump_event_state_mask(yajl_gen gen, Binding *bind) {
     y(array_open);
     for (int i = 0; i < 20; i++) {
@@ -388,6 +398,8 @@ void dump_node(yajl_gen gen, struct Con *con, bool inplace_restart) {
     if (con->type == CT_WORKSPACE) {
         ystr("num");
         y(integer, con->num);
+
+        dump_gaps(gen, "gaps", con->gaps);
     }
 
     ystr("window");
@@ -652,6 +664,11 @@ static void dump_bar_config(yajl_gen gen, Barconfig *config) {
 
     YSTR_IF_SET(status_command);
     YSTR_IF_SET(font);
+
+    if (config->bar_height) {
+        ystr("bar_height");
+        y(integer, config->bar_height);
+    }
 
     if (config->separator_symbol) {
         ystr("separator_symbol");

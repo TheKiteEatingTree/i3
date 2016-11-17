@@ -37,7 +37,7 @@ typedef struct render_params {
  * updated in X11.
  *
  */
-void render_con(Con *con, bool render_fullscreen);
+void render_con(Con *con, bool render_fullscreen, bool already_inset);
 
 /*
  * Returns the height for the decorations

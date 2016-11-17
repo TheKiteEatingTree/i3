@@ -1471,10 +1471,11 @@ Con *con_descend_direction(Con *con, direction_t direction) {
  *
  */
 Rect con_border_style_rect(Con *con) {
-    if (config.hide_edge_borders == HEBM_SMART && con_num_visible_children(con_get_workspace(con)) <= 1) {
-        if (!con_is_floating(con)) {
+    if ((config.smart_borders == ON && con_num_visible_children(con_get_workspace(con)) <= 1) ||
+        (config.smart_borders == NO_GAPS && calculate_effective_gaps(con).outer == 0) ||
+        (config.hide_edge_borders == HEBM_SMART && con_num_visible_children(con_get_workspace(con)) <= 1)) {
+        if (!con_is_floating(con))
             return (Rect){0, 0, 0, 0};
-        }
     }
 
     adjacent_t borders_to_hide = ADJ_NONE;
@@ -2075,6 +2076,41 @@ char *con_get_tree_representation(Con *con) {
     free(buf);
 
     return complete_buf;
+}
+
+/**
+ * Calculates the effective gap sizes for a container.
+ */
+gaps_t calculate_effective_gaps(Con *con) {
+    Con *workspace = con_get_workspace(con);
+    if (workspace == NULL || (config.smart_gaps && con_num_visible_children(workspace) <= 1))
+        return (gaps_t){0, 0};
+
+    gaps_t gaps = {
+        .inner = (workspace->gaps.inner + config.gaps.inner) / 2,
+        .outer = workspace->gaps.outer + config.gaps.outer};
+
+    /* Outer gaps are added on top of inner gaps. */
+    gaps.outer += 2 * gaps.inner;
+
+    return gaps;
+}
+
+/**
+ * Recursively check whether the (potential) parent container
+ * contains the (potential) child container.
+ */
+bool con_has_parent(Con *parent, Con *child) {
+    Con *current = NULL;
+    TAILQ_FOREACH(current, &(parent->nodes_head), nodes) {
+        if (current == child)
+            return true;
+
+        if (con_has_parent(current, child))
+            return true;
+    }
+
+    return false;
 }
 
 /*
