@@ -13,6 +13,7 @@
 #include <string.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_aux.h>
+#include <xcb/xcb_image.h>
 #include <cairo/cairo-xcb.h>
 
 /* The default visual_type to use if none is specified when creating the surface. Must be defined globally. */
@@ -133,6 +134,40 @@ void draw_util_text(i3String *text, surface_t *surface, color_t fg_color, color_
 
     /* Notify cairo that we (possibly) used another way to draw on the surface. */
     cairo_surface_mark_dirty(surface->surface);
+}
+
+/**
+ * Draw the given image using libi3.
+ * This function is a convenience wrapper and takes care of flushing the
+ * surface as well as restoring the cairo state.
+ *
+ */
+void draw_util_image(uint32_t *src, int src_width, int src_height, surface_t *surface, int x, int y, int width, int height) {
+    RETURN_UNLESS_SURFACE_INITIALIZED(surface);
+
+    double scale;
+
+    cairo_save(surface->cr);
+
+    cairo_surface_t *image;
+
+    image = cairo_image_surface_create_for_data(
+            (unsigned char *)src,
+            CAIRO_FORMAT_ARGB32,
+            src_width,
+            src_height,
+            cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, src_width));
+
+    cairo_translate(surface->cr, x, y);
+
+    scale = MIN((double) width / src_width, (double) height / src_height);
+    cairo_scale(surface->cr, scale, scale);
+
+    cairo_set_source_surface(surface->cr, image, 0, 0);
+    cairo_paint(surface->cr);
+
+    cairo_surface_destroy(image);
+    cairo_restore(surface->cr);
 }
 
 /**

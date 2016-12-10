@@ -607,12 +607,31 @@ void x_draw_decoration(Con *con) {
         FREE(formatted_mark);
     }
 
+    int text_indent = logical_px(3);
+    /* Draw the icon */
+    if (win->icon) {
+        int width = logical_px(16);
+        int height = logical_px(16);
+        int indent = logical_px(7);
+        text_indent = indent + width + logical_px(3);
+        int icon_offset_y = (con->deco_rect.height - height) / 2;
+        draw_util_image(
+            win->icon,
+            (int)win->icon_width,
+            (int)win->icon_height,
+            &(parent->frame_buffer),
+            con->deco_rect.x + indent,
+            con->deco_rect.y + icon_offset_y,
+            width,
+            height);
+    }
+    
     i3String *title = con->title_format == NULL ? win->name : con_parse_title_format(con);
     draw_util_text(title, &(parent->frame_buffer),
                    p->color->text, p->color->background,
-                   con->deco_rect.x + logical_px(2),
+                   con->deco_rect.x + logical_px(2) + text_indent,
                    con->deco_rect.y + text_offset_y,
-                   con->deco_rect.width - mark_width - 2 * logical_px(2));
+                   con->deco_rect.width - text_indent - mark_width - 2 * logical_px(2));
     if (con->title_format != NULL)
         I3STRING_FREE(title);
 
